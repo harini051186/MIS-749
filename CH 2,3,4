@@ -1,0 +1,183 @@
+
+rm(list=ls())
+dir <- "/Users/gracynruiz/Documents/Spring 2018/MIS 749/PROJECT"
+setwd(dir)
+pkgTest <- function(x) {
+  if (!require(x, character.only = TRUE))
+  {
+    install.packages(x, dep = TRUE)
+    if(!require(x, character.only = TRUE)) stop("Package not found")
+  }
+}
+packages <- c("readxl", "data.table", "psych", "car", "corrgram", "scatterplot3d", "ISLR", "ggplot2",
+              "ggthemes", "gridExtra", "MASS", "ISLR", "caret", "e1071", "corrplot", "pROC", "leaps",
+              "elasticnet", "pls", "gam", "visreg", "lubridate")
+lapply(packages, pkgTest)
+flights.data <- fread('flights.csv')
+flights.data <- flights.data[,1:26]
+str(flights.data)
+delayed_arrival <- as.numeric(flights.data$ARRIVAL_DELAY > 0)
+flights.data <- cbind(flights.data,delayed_arrival)
+delayed_departure <- as.numeric(flights.data$DEPARTURE_DELAY > 0)
+flights.data <- cbind(flights.data,delayed_departure)
+#Week 2
+class(flights.data) 
+head(flights.data)
+
+str(flights.data)
+
+names(flights.data)
+flights.data$DAY_OF_WEEK <- factor(flights.data$DAY_OF_WEEK)
+flights.data$AIRLINE <- factor(flights.data$AIRLINE)
+flights.data$CANCELLATION_REASON <- (flights.data$CANCELLATION_REASON)
+
+
+flights.data$lARRIVAL_DELAY <- log(flights.data$ARRIVAL_DELAY)
+
+hist(flights.data$ARRIVAL_DELAY)
+hist(flights.data$lARRIVAL_DELAY)
+summary(flights.data)
+
+describeBy(flights.data$delayed_arrival, flights.data$delayed_departure)
+
+CANCELA <- flights.data[flights.data$CANCELLATION_REASON =="A",] #Airline/Carrier
+CANCELB <- flights.data[flights.data$CANCELLATION_REASON =="B",] #Weather
+CANCELC <- flights.data[flights.data$CANCELLATION_REASON =="C",] #National Air System
+CANCELD <- flights.data[flights.data$CANCELLATION_REASON =="D",] #Security
+
+#outliars?
+summary(flights.data$ARRIVAL_DELAY)
+#boxplot(flights.data$ARRIVAL_DELAY)
+#boxplot(flights.data$DEPARTURE_DELAY)
+
+#lets visualize the data
+boxplot(flights.data$lARRIVAL_DELAY ~ flights.data$AIRLINE)
+hist(flights.data$delayed_departure)
+plot(flights.data$AIRLINE)
+#pairs(flights.data)
+
+
+lm1 <- lm(delayed_arrival~delayed_departure + SCHEDULED_ARRIVAL, data=flights.data)
+summary(lm1)
+
+plot(flights.data$SCHEDULED_DEPARTURE, flights.data$DEPARTURE_DELAY, main ="Scheduled Daprture vs. Delay")#takes a long time
+
+table(flights.data$AIRLINE)
+plot(flights.data$AIRLINE, Xlab="Airline", ylab="Count")
+airlinedelay.table <- table(flights.data$AIRLINE, flights.data$delayed_arrival)
+airlinedelay.table
+chisq.test(airlinedelay.table)
+barplot(airlinedelay.table ) 
+legend("topright",legend=c("delayed","on time"))
+plot(flights.data$AIRLINE~flights.data$delayed_arrival, col=c("red", "blue"))
+
+#Week 3
+scatterplotMatrix(~ MONTH + DAY_OF_WEEK + SCHEDULED_DEPARTURE + DEPARTURE_DELAY, data=flights.data)
+confint(lm1)
+
+coef(summary(lm1))
+coef(summary(lm1))[2] #estimate of slope
+coef(summary(lm1))[2,2] #second coefficent std error
+coef(summary(lm1))[2,4] #extract p value 
+
+coef(summary(lm1))[2] / coef(summary(lm1))[2,2]
+
+anova(lm1)
+
+airline.lm <- lm (delayed_arrival~delayed_departure + AIRLINE, data=flights.data)
+summary(airline.lm)
+
+flights.data.cor <- flights.data[,-c(4,5,7,8,9,26)]
+round(cor(flights.data.cor),2)
+
+#the corrgrams take forever and crash everytime I try to run them
+#corrgram(flights.data.cor) 
+
+#corrgram(flights.data.cor, lower.panel=panel.shade,upper.panel=panel.pie)
+
+cor(cbind(flights.data.cor,lm1$residuals))
+#corrgram(cbind(flights.data.cor,lm1$residuals))
+
+
+#pairs(flights.data)
+
+contrasts(flights.data$AIRLINE)
+
+#basic 3d scatter plot of 3 variables
+scatterplot3d(flights.data$DEPARTURE_DELAY, flgihts.data$SCHEDULED_DEPARTURE, flights.data$AIR_TIME)
+
+
+
+timeint.lm <- lm(delayed_arrival ~ delayed_departure + AIR_TIME + SCHEDULED_DEPARTURE*AIR_TIME, data=flights.data)
+summary(timeint.lm)
+
+#fit interaction on factor interaction
+summary(lm(DEPARTURE_DELAY ~ SCHEDULED_DEPARTURE + AIRLINE, data=flights.data)) 
+
+#fit quadratic
+lm2 <- lm(DEPARTURE_DELAY ~ SCHEDULED_DEPARTURE + I(SCHEDULED_DEPARTURE^2), data=flights.data)
+summary(lm2)
+anova(lm1, lm2) 
+
+
+##Week 4
+
+
+qplot(x=ARRIVAL_DELAY, y=SCHEDULED_ARRIVAL, color=ARRIVAL_DELAY, data=flights.data)
+
+
+dept.plot <- qplot(x=delayed_departure, y=SCHEDULED_DEPARTURE, geom="boxplot",color=delayed_departure, color=delayed_departure, data=flights.data)
+time.plot <- qplot(x=delayed_departure, y=AIR_TIME, geom="boxplot",color=delayed_departure, color=delayed_departure, data=flights.data)
+
+#produce plot with two columns
+grid.arrange(dept.plot, time.plot, ncol=2)
+
+delay.lm <- lm(delayed_departure ~ AIR_TIME,data=flights.data)
+summary(delay.lm)
+
+#lets look at the predictions
+hist(delay.lm$fitted.values)
+
+plot(delayed_departure ~ flights.data$AIR_TIME)
+abline(delay.lm)
+
+
+glm <- glm(delayed_departure ~ SCHEDULED_DEPARTURE, data=flights.data, family=binomial) 
+summary(glm) #model summary
+coef(glm) #coefficents
+exp(coef(glm))
+
+#plot the logistic regression curve
+plot(delayed_departure ~ flights.data$AIR_TIME)
+curve(predict(glm,data.frame(AIR_TIME=x),type="resp"),add=TRUE, col="blue")
+
+
+#estimate the probabilty of delay with new AIR_TIME
+newdata <- data.frame(SCHEDULED_DEPARTURE=c(0,600, 1200, 1800))
+predict(glm, newdata, type="response") #get probabilities
+
+
+glm2 <- glm(delayed_departure ~ AIRLINE, data=flights.data, family=binomial) 
+summary(glm2) #model summary
+coef(glm2) #coefficents
+
+
+#fit multivariate logistic regression
+glm3 <- glm(delayed_departure ~ SCHEDULED_DEPARTURE + AIR_TIME + AIRLINE, data=flights.data, family=binomial) 
+
+summary(glm3)
+round(coef(glm3), 6)
+
+
+
+#linear discriminant analysis
+
+lda <- lda(delayed_departure ~ SCHEDULED_DEPARTURE + AIR_TIME + AIRLINE, data=flights.data )
+lda
+plot(lda)
+
+
+
+
+
+
